@@ -36,14 +36,14 @@ automatically, but does not install these system executables.
 
 ### Install directly from GitHub with pip
 
-Replace `YOUR_NAME/skatecut` below with the actual GitHub owner and repository.
-These commands assume `pyproject.toml` is at the root of that repository.
+Install from the [Skatecut GitHub repository](https://github.com/dkudrow/skatecut)
+in an isolated Python environment:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install "git+https://github.com/YOUR_NAME/skatecut.git"
+python -m pip install "git+https://github.com/dkudrow/skatecut.git"
 skatecut --help
 ```
 
@@ -57,11 +57,11 @@ In a new terminal, activate the environment again using
 `source /path/to/.venv/bin/activate`. Run `deactivate` to leave it.
 
 To install a particular release, append its tag to the repository URL, for
-example `git+https://github.com/YOUR_NAME/skatecut.git@v0.1.0` once that tag exists.
+example `git+https://github.com/dkudrow/skatecut.git@v0.1.0` once that tag exists.
 To update an installation from the repository's default branch:
 
 ```bash
-python -m pip install --upgrade "git+https://github.com/YOUR_NAME/skatecut.git"
+python -m pip install --upgrade "git+https://github.com/dkudrow/skatecut.git"
 ```
 
 ### Install from a local checkout

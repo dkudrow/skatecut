@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skatecut"
+version = "0.1.0"
+description = "Keep the active parts of fixed-camera skateboarding videos."
+requires-python = ">=3.11"
+dependencies = ["numpy>=2.0,<3", "opencv-python-headless>=4.10,<5"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+skatecut = "skatecut.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["skatecut*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+

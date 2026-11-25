@@ -149,6 +149,40 @@ python -m skatecut session.mov -o highlights.mp4 --pre-roll 2 --post-roll 3
 When reusing an output name, add `--overwrite` to replace its previous reports.
 Run `python -m skatecut --help` for every setting.
 
+### Show an attempt counter
+
+```bash
+skatecut session.mov -o highlights.mp4 --approach-from left --attempt-counter
+```
+
+`--attempt-counter` burns a small white `Attempt 1`, `Attempt 2`, etc. label into
+the upper-left corner, over a translucent dark background. The size scales with
+the displayed video dimensions. Omit the flag for an export without a counter.
+
+Numbering starts at 1 and includes only retained attempts. With sequence
+filtering enabled, each retained motion sequence receives a number; omitted
+returns do not count, and a sequence split across clips keeps its number.
+Without sequence filtering, each detected motion event counts as an attempt.
+Numbering happens before padding and clip merging, so a merged clip can contain
+several attempt numbers. The label includes lead/trail footage and changes during
+the next attempt's lead-in, after the previous attempt's core has ended.
+
+Counts reflect motion detection, including uncertain sequences; the counter does
+not recognize individual tricks within continuous motion. Quiet footage retained
+between attempts shows the previous number until the next lead-in begins.
+
+The JSON report records `render_options.attempt_counter` and, when enabled, an
+`attempt_counter` list of `{number, start, end}` spans in source-video seconds.
+`--analyze-only --attempt-counter` writes the planned labels without rendering.
+The Python API enables it with `RenderOptions(attempt_counter=True)`; an existing
+analysis can be exported with or without labels without repeating detection.
+
+This option requires FFmpeg's `drawtext` filter and an available system font.
+Standard Homebrew and Ubuntu/Debian FFmpeg builds support it. If a minimal Linux
+installation has no fonts, install `fonts-dejavu-core` using its package manager.
+The overlay is applied after phone rotation and HDR-to-SDR conversion; it keeps
+the existing frame timing and audio.
+
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `--sample-fps` | 10 | Analysis samples per second; export retains original frame timing |
@@ -163,6 +197,7 @@ Run `python -m skatecut --help` for every setting.
 | `--min-component` | 0.001 | Minimum connected moving-region area relative to ROI |
 | `--background-seconds` | 20 s | Approximate background adaptation timescale |
 | `--crf` | 18 | H.264 quality; lower means larger, higher-quality files |
+| `--attempt-counter` | Off | Show the current retained attempt number in the upper-left corner |
 | `--preset` | medium | Encoding speed versus compression |
 | `--scratch-dir` | System temp directory | Existing directory for decoder logs and intermediate clips |
 

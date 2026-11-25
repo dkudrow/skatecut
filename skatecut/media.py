@@ -14,6 +14,7 @@ from collections.abc import Sequence
 import numpy as np
 
 from .model import Interval
+from .counter import AttemptSpan
 from .progress import ProgressCallback, emit
 
 
@@ -45,6 +46,34 @@ def require_hdr_filters():
     if not {"zscale", "tonemap", "sidedata"} <= names:
         raise MediaError("HDR export needs FFmpeg with zscale, tonemap, and sidedata filters. "
                          "Install a full FFmpeg build or use --analyze-only.")
+
+
+@cache
+def require_counter_filter():
+    available = _run(["ffmpeg", "-hide_banner", "-filters"]).stdout
+    names = {line.split()[1] for line in available.splitlines() if len(line.split()) >= 3}
+    if "drawtext" not in names:
+        raise MediaError("Attempt counter needs FFmpeg with the drawtext filter. "
+                         "Install a full FFmpeg build or omit --attempt-counter.")
+
+
+def counter_filters(info: VideoInfo, interval: Interval, spans: Sequence[AttemptSpan]) -> list[str]:
+    """Draw fixed, generated text after rotation/tone mapping using clip-local time."""
+    size = max(12, round(min(info.width, info.height) * 0.035))
+    margin = max(8, round(min(info.width, info.height) * 0.025))
+    border = max(3, round(size / 3))
+    filters = []
+    for span in spans:
+        start, end = max(interval.start, span.start), min(interval.end, span.end)
+        if end <= start:
+            continue
+        filters.append(
+            f"drawtext=text='Attempt {span.number}':expansion=none:font=Sans:fontsize={size}:"
+            f"fontcolor=white:box=1:boxcolor=black@0.55:boxborderw={border}:"
+            f"x={margin}:y={margin}:fix_bounds=1:"
+            f"enable='gte(t,{start - interval.start:.9f})*lt(t,{end - interval.start:.9f})'"
+        )
+    return filters
 
 
 def hdr_to_sdr_filter() -> str:
@@ -180,11 +209,14 @@ def publish(temporary: Path, destination: Path, overwrite: bool):
 
 def render(source: Path, destination: Path, info: VideoInfo, intervals: Sequence[Interval],
            overwrite: bool = False, crf: int = 18, preset: str = "medium",
-           progress: ProgressCallback | None = None, scratch_dir: Path | None = None):
+           progress: ProgressCallback | None = None, scratch_dir: Path | None = None,
+           *, attempt_spans: Sequence[AttemptSpan] | None = None):
     if not intervals:
         raise ValueError("Cannot render an empty edit")
     if info.hdr:
         require_hdr_filters()
+    if attempt_spans:
+        require_counter_filter()
     # Encode intervals separately, then join without a second video encode. This
     # keeps memory/filter-graph size bounded even for hundreds of attempts.
     with tempfile.TemporaryDirectory(prefix="skatecut-", dir=scratch_dir) as directory:
@@ -199,7 +231,11 @@ def render(source: Path, destination: Path, info: VideoInfo, intervals: Sequence
                        f"trim=start=0:end={interval.duration:.9f},")
             if info.hdr:
                 vfilter += hdr_to_sdr_filter() + ","
-            vfilter += "pad=ceil(iw/2)*2:ceil(ih/2)*2,setsar=1[v]"
+            vfilter += "pad=ceil(iw/2)*2:ceil(ih/2)*2,setsar=1"
+            if attempt_spans:
+                for overlay in counter_filters(info, interval, attempt_spans):
+                    vfilter += "," + overlay
+            vfilter += "[v]"
             filters = [vfilter]
             # Seek to a preceding keyframe and let the timestamp filters make
             # the exact cut. This also avoids FFmpeg's accurate-seek offset

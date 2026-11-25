@@ -8,6 +8,7 @@ from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
 
 from . import __version__
+from .counter import AttemptSpan, plan_counter
 from .detector import analyze
 from .media import VideoInfo, probe, render
 from .model import Config, Interval, RenderOptions, Score, select_intervals
@@ -27,6 +28,12 @@ class AnalysisResult:
     sequence_observations: tuple[MotionSequence, ...] = ()
     sequence_plan: SequencePlan | None = None
     spatial_analyzed: bool = False
+
+    @property
+    def attempt_spans(self) -> tuple[AttemptSpan, ...]:
+        """Numbered source-time spans for the current edit, without decoding."""
+        return plan_counter(self.intervals, self.scores, self.video.duration,
+                            self.config, self.sequence_plan)
 
     @property
     def kept_seconds(self) -> float:
@@ -69,8 +76,11 @@ class ProcessingResult:
         return self.output is not None
 
     def to_dict(self) -> dict:
-        return {**self.analysis.to_dict(), "rendered": self.rendered,
-                "render_options": asdict(self.render_options)}
+        result = {**self.analysis.to_dict(), "rendered": self.rendered,
+                  "render_options": asdict(self.render_options)}
+        if self.render_options.attempt_counter:
+            result["attempt_counter"] = [asdict(span) for span in self.analysis.attempt_spans]
+        return result
 
 
 def _source_path(source: str | Path) -> Path:
@@ -182,7 +192,8 @@ def render_video(analysis: AnalysisResult, output: str | Path, *,
     if analysis.video.hdr:
         emit(progress, "render", "HDR input: export will be tone-mapped to SDR (BT.709).")
     render(source, destination, analysis.video, analysis.intervals, overwrite,
-           options.crf, options.preset, progress=progress, scratch_dir=scratch)
+           options.crf, options.preset, progress=progress, scratch_dir=scratch,
+           attempt_spans=analysis.attempt_spans if options.attempt_counter else None)
     emit(progress, "complete", "Video export complete.")
     return ProcessingResult(analysis, destination, options)
 

@@ -2,7 +2,6 @@
 
 import argparse
 import csv
-from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
@@ -10,7 +9,7 @@ import sys
 from . import __version__
 from .media import MediaError, publish, staged_path
 from .model import Config, ENCODING_PRESETS, RenderOptions
-from .pipeline import analyze_video, render_video
+from .pipeline import ProcessingResult, analyze_video, render_video
 from .sequences import SequenceFilterOptions
 
 
@@ -43,6 +42,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--crf", type=int, default=18, help="H.264 quality, 0–51; lower is better (default: 18)")
     p.add_argument("--preset", choices=ENCODING_PRESETS,
                    default="medium", help="Encoding speed/compression tradeoff (default: medium)")
+    p.add_argument("--attempt-counter", action="store_true",
+                   help="Overlay the current retained attempt number in the upper-left corner")
     p.add_argument("--scratch-dir", type=Path,
                    help="Existing directory for intermediate files (default: system temp directory)")
     p.add_argument("--approach-from", choices=("left", "right"),
@@ -66,7 +67,7 @@ def main(argv=None) -> int:
         if values["roi"] is not None:
             values["roi"] = tuple(values["roi"])
         config = Config(**values)
-        options = RenderOptions(crf=args.crf, preset=args.preset)
+        options = RenderOptions(crf=args.crf, preset=args.preset, attempt_counter=args.attempt_counter)
         sequence_filter = None
         if not args.approach_from and any(value is not None for value in (
                 args.attempt_duration, args.same_side, args.trick_roi)):
@@ -97,9 +98,8 @@ def main(argv=None) -> int:
         info, scores, intervals = analysis.video, analysis.scores, analysis.intervals
         kept = analysis.kept_seconds
         payload = {
-            **analysis.to_dict(), "source": str(source), "output": str(output),
-            "render_options": asdict(options),
-            "rendered": False,
+            **ProcessingResult(analysis, None, options).to_dict(),
+            "source": str(source), "output": str(output),
         }
         # Reports are useful even when a render fails or no activity is found.
         def write_json():

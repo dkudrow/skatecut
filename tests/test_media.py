@@ -6,7 +6,7 @@ import pytest
 
 from skatecut.cli import main
 from skatecut.detector import analyze, foreground_fraction
-from skatecut.media import MediaError, frames, probe, render, require_hdr_filters
+from skatecut.media import MediaError, frames, probe, render, require_hdr_filters, require_counter_filter
 from skatecut.model import Config, Interval, select_intervals
 from conftest import make_video
 
@@ -160,9 +160,12 @@ def test_audio_offsets_survive_multiple_cuts(tmp_path, ffmpeg, timestamp_offset)
 
 
 @pytest.mark.parametrize("transfer", ["arib-std-b67", "smpte2084"])
-def test_hdr_export_is_tone_mapped_and_tagged_sdr(active_video, tmp_path, transfer):
+@pytest.mark.parametrize("counter", [False, True])
+def test_hdr_export_is_tone_mapped_and_tagged_sdr(active_video, tmp_path, transfer, counter):
     try:
         require_hdr_filters()
+        if counter:
+            require_counter_filter()
     except MediaError as exc:
         pytest.skip(str(exc))
     source = tmp_path / "hdr.mp4"
@@ -176,7 +179,8 @@ def test_hdr_export_is_tone_mapped_and_tagged_sdr(active_video, tmp_path, transf
                    check=True, capture_output=True)
     assert probe(source).hdr
     output = tmp_path / "sdr.mp4"
-    assert main([str(source), "-o", str(output), "--preset", "ultrafast"]) == 0
+    assert main([str(source), "-o", str(output), "--preset", "ultrafast"]
+                + (["--attempt-counter"] if counter else [])) == 0
     assert output.exists()
     assert not probe(output).hdr
     metadata = json.loads(subprocess.run([
@@ -189,5 +193,7 @@ def test_hdr_export_is_tone_mapped_and_tagged_sdr(active_video, tmp_path, transf
     assert report["color_conversion"] == "hdr_to_sdr_bt709"
     decoded = list(frames(output, 320, 180, 10))
     assert max(float(frame.std()) for frame in decoded) > 10
+    if counter:
+        assert np.count_nonzero(decoded[0][:32, :120] > 150) > 50
 
 

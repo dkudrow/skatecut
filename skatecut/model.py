@@ -68,12 +68,15 @@ ENCODING_PRESETS = ("ultrafast", "superfast", "veryfast", "faster", "fast", "med
 class RenderOptions:
     crf: int = 18
     preset: str = "medium"
+    attempt_counter: bool = False
 
     def __post_init__(self):
         if isinstance(self.crf, bool) or not isinstance(self.crf, int) or not 0 <= self.crf <= 51:
             raise ValueError("CRF must be an integer between 0 and 51")
         if self.preset not in ENCODING_PRESETS:
             raise ValueError(f"preset must be one of: {', '.join(ENCODING_PRESETS)}")
+        if not isinstance(self.attempt_counter, bool):
+            raise ValueError("attempt_counter must be a boolean")
 
 
 @dataclass(frozen=True)
